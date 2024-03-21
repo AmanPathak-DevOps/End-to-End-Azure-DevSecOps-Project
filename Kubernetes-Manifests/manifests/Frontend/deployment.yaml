@@ -1,0 +1,33 @@
+# -----------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: three-tier
+  labels:
+    role: frontend
+    env: demo
+spec: 
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 25%
+  selector:
+    matchLabels: 
+      role: frontend
+  template:
+    metadata:
+      labels:
+        role: frontend
+    spec: 
+      containers:
+      - name: frontend
+        image: frontendaman8765.azurecr.io/frontend:3
+        imagePullPolicy: Always
+        env:
+          - name: REACT_APP_BACKEND_URL
+            value: "https://amanpathakdevops.study/api/tasks" # If SSL is configured keep https other http is fine
+        ports:
+        - containerPort: 3000

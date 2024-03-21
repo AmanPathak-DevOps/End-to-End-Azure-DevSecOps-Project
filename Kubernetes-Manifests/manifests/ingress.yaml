@@ -1,0 +1,32 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ingresslb
+  namespace: three-tier
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - amanpathakdevops.study
+    secretName: tls-secret
+  rules:
+    - host: amanpathakdevops.study
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix  
+            backend:
+              service:
+                name: api
+                port:   
+                  number: 3500
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port: 
+                  number: 3000
+      

@@ -1,0 +1,57 @@
+image: 
+  name: hashicorp/terraform:latest
+  entrypoint:
+    - '/usr/bin/env'
+    - 'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
+
+variables:
+  TF_IN_AUTOMATION: "true"
+  TF_ROOT: ${CI_PROJECT_DIR}
+  ENV: variables
+  TERRAFORM_ACTION: apply
+
+
+before_script:
+  - terraform --version
+  - terraform init
+
+stages:
+  - validate
+  - plan
+  - action
+
+Validating the Terraform Configuration:
+  stage: validate
+  script:
+    - terraform validate
+  
+
+Running the Plan:
+  stage: plan
+  script:
+    - terraform plan -var-file=$ENV.tfvars
+
+
+Running the Apply:
+  stage: action
+  script:
+    - if [[ "$TERRAFORM_ACTION" == "apply" ]]; then
+        terraform apply -auto-approve -var-file=$ENV.tfvars;
+      fi
+  when: manual
+
+  only:
+    variables:
+      - $TERRAFORM_ACTION == "apply"
+
+Running the Destroy:
+  stage: action
+  script:
+    - if [[ "$TERRAFORM_ACTION" == "destroy" ]]; then
+        terraform destroy -auto-approve -var-file=$ENV.tfvars;
+      fi
+  when: manual
+  
+  only:
+    variables:
+      - $TERRAFORM_ACTION == "destroy"

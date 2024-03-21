@@ -1,0 +1,150 @@
+stages:
+  - npm
+  - code-analysis
+  - file-scan
+  - image-build
+  - image-scan
+  - dp-check
+  - image-push
+  - cloning repo
+  - updating deployment file
+
+variables:
+  DOCKER_DRIVER: overlay2
+  CI_DEBUG_TRACE: "true"
+
+Installing Dependency:
+  stage: npm
+  tags:
+    - backend
+  script:
+    - npm install
+
+
+# Checking Code Vulnerabilities
+sonarqube-check:
+  stage: code-analysis
+  image: 
+    name: sonarsource/sonar-scanner-cli:latest
+    entrypoint: [""]
+  variables:
+    SONAR_USER_HOME: "${CI_PROJECT_DIR}/.sonar"  # Defines the location of the analysis task cache
+    GIT_DEPTH: "0"  # Tells git to fetch all the branches of the project, required by the analysis task
+  cache:
+    key: "${CI_JOB_NAME}"
+    paths:
+      - .sonar/cache
+  script: 
+    - sonar-scanner
+  allow_failure: true
+  only:
+    - main
+
+# File Scan using Trivy
+Trivy file scan:
+  stage: file-scan
+  tags:
+    - backend
+  before_script:
+    - mkdir -p trivy-file-scan
+  script: 
+    - trivy fs . -o trivy-file-scan/trivy-file-scan-backend:$CI_PIPELINE_IID.txt
+  artifacts:
+    untracked: false
+    when: on_success
+    expire_in: 30 days
+    paths:
+      - "trivy-file-scan"
+
+# Docker Image Building
+Image Building :
+  stage: image-build
+  tags:
+    - backend
+  image:
+    name: docker:latest
+  services:
+    - docker:dind
+  script:
+    - docker build -t $BACKEND_ACR_USERNAME/backend:$CI_PIPELINE_IID .
+
+# ACR Image Scanning
+Image Scaning using Trivy:
+  stage: image-scan
+  tags:
+    - backend
+  before_script:
+    - echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
+  script:
+    - mkdir -p trivy-image-scan
+    - trivy image --severity HIGH,CRITICAL $BACKEND_ACR_USERNAME/backend:$CI_PIPELINE_IID -o trivy-image-scan/trivy-image-scan-backend:$CI_PIPELINE_IID.txt
+  artifacts:
+    untracked: false
+    when: on_success
+    expire_in: 30 days
+    paths:
+      - "trivy-image-scan/"
+
+# Dependency Check Running:
+DP-Check:
+  stage: dp-check
+  image:
+    name: owasp/dependency-check
+    entrypoint: [""]
+  script:
+    - /usr/share/dependency-check/bin/dependency-check.sh --scan .
+  artifacts:
+    untracked: false
+    when: on_success
+    expire_in: 30 days
+    paths:
+      - "/reports/dependency-check"
+
+
+# Pushing Image to ACR
+Image Pushing to ACR:
+  stage: image-push
+  tags:
+    - backend
+  image:
+    name: docker:latest
+  services:
+    - docker:bind
+  before_script:
+    - echo "$BACKEND_ACR_PASSWORD" | docker login $BACKEND_ACR_USERNAME -u $BACKEND_ACR_REGISTRY --password-stdin
+  script: 
+    - docker push $BACKEND_ACR_USERNAME/backend:$CI_PIPELINE_IID
+    - docker rmi -f $BACKEND_ACR_USERNAME/backend:$CI_PIPELINE_IID
+
+# Cloning the Manifest Repo
+Repo Cloning:
+  stage: cloning repo
+  tags:
+    - backend
+  script:
+    - git clone https://oauth2:$GITLAB_TOKEN@gitlab.com/azure-devsecops-project/kubernetes-manifests/manifests.git
+  artifacts:
+    paths:
+      - manifests/
+    expire_in: 1 week
+
+
+# Updating & Pushing Changes
+Updating Image tag:
+  stage: updating deployment file
+  tags:
+    - backend
+  script:
+    - cd manifests/Backend/
+    - imageTag=$(grep -oP '(?<=backend:)[^ ]+' deployment.yaml)
+    - echo $imageTag
+    - sed -i "s/${BACKEND_ACR_USERNAME}\/backend:$imageTag/${BACKEND_ACR_USERNAME}\/backend:$CI_PIPELINE_IID/" deployment.yaml
+    - git config --global user.email ${GITLAB_ID}
+    - git config --global user.name ${GITLAB_USERNAME}
+    - git status
+    - git add deployment.yaml
+    - git status
+    - git commit -m "Update deployment Image to version $CI_PIPELINE_IID"
+    - git status
+    - git push origin main
+  when: manual

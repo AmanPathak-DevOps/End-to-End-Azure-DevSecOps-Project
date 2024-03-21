@@ -1,0 +1,3 @@
+# # # 
+.terraform*
+hashicorp_vm
