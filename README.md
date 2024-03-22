@@ -42,7 +42,7 @@ Our project is designed to streamline the deployment process using Terraform for
 - Access to an Azure subscription with appropriate permissions to create resources and manage secrets.
 - Basic understanding of networking concepts and security principles.
 
-For detailed step-by-step instructions and explanations, please refer to my accompanying [blog](link-to-your-blog-post) post.
+For detailed step-by-step instructions and explanations, please refer to my accompanying [blog](https://medium.com/@amanpathakdevops/advanced-end-to-end-devsecops-kubernetes-three-tier-project-using-azure-aks-fluxcd-prometheus-cca3c5e61953) post.
 
 ## Conclusion
 
